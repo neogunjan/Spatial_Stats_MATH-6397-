@@ -380,6 +380,90 @@ fit.sph.reml
 #likfit: maximised log-likelihood = -326.6
 
 
+## Kriging
+quilt.plot(sample_data$longitude, sample_data$latitude, sample_data$median_house_value)
+points(sample_kriging_data$longitude, sample_kriging_data$latitude)
+
+alpha = 0.0542
+beta  = 0.0186
+delta = 0.0479
+
+D <- rdist.earth(loc,miles = T) # distance
+d <- rdist.earth(loc, cbind(sample_kriging_data$longitude, sample_kriging_data$latitude), miles=T)
+
+S <- alpha*exp(-D/beta)                       # covareiance matrix 
+diag(S) = diag(S) + delta                     # nugget
+k <- alpha*exp(-d/beta)
+
+M <- cbind(rep(1, dim(D)[1]), x1,x2,x3,x4,x5) # design matrix
+m <- t(cbind(rep(1, 100), sample_kriging_data$total_bedrooms,sample_kriging_data$median_income,
+           sample_kriging_data$housing_median_age,sample_kriging_data$longitude,sample_kriging_data$latitude))
+
+# M <- cbind(rep(1, dim(D)[1]), x4,x5) # design matrix
+# m <- t(cbind(rep(1, 100), sample_kriging_data$longitude,sample_kriging_data$latitude))
+
+lambda=(solve(S) - solve(S) %*% M %*% solve(t(M) %*% solve(S) %*% M) %*% t(M) %*% solve(S) ) %*% k + solve(S) %*% M %*% solve(t(M) %*% solve(S) %*% M) %*% m
+
+y.krig= t(lambda) %*% sample_data$median_house_value
+
+quilt.plot(sample_kriging_data$longitude, sample_kriging_data$latitude, y.krig,  main='krigged values')
+
+plot(sample_kriging_data$median_house_value, y.krig)
+
+mse = mean((sample_kriging_data$median_house_value-y.krig)^2)
+mse
+mae = mean(abs(sample_kriging_data$median_house_value-y.krig))
+mae
+
+mean((log(sample_kriging_data$median_house_value)-log(y.krig))^2)
+mean(abs(log(sample_kriging_data$median_house_value)-log(y.krig)))
+
+# MSE spatial plot
+d00 = rdist.earth(cbind(sample_kriging_data$longitude, sample_kriging_data$latitude), miles=T)
+k0 = alpha*exp(-d00/beta)
+diag(k0) = diag(k0)+delta
+
+g= m-t(M) %*% solve(S) %*% k # gamma
+
+mse.1=k0-t(k) %*% solve(S) %*% k + t(g) %*% solve(t(M) %*% solve(S) %*% M) %*% g
+mse.1=diag(mse.1)
+
+quilt.plot(sample_kriging_data$longitude, sample_kriging_data$latitude, mse.1,  main='Kriging MSE')
+
+# Entire domain
+x1=seq(min(sample_data$longitude),max(sample_data$longitude),,100) 
+y1=seq(min(sample_data$latitude),max(sample_data$latitude),,100) 
+
+loc1=make.surface.grid(list(x1,y1))
+
+M <- cbind(rep(1, dim(D)[1]), x4,x5) # design matrix
+# m <- t(cbind(rep(1, 100), sample_kriging_data$longitude,sample_kriging_data$latitude))
+
+d0 = rdist.earth(loc, loc1, miles=T)
+k = alpha*exp(-d0/beta)
+
+d00=rdist.earth(loc1, miles = T)
+
+k0=alpha*exp(-d00/beta)
+diag(k0)=diag(k0)+delta
+
+m=t(cbind(rep(1,10000), loc1[,1], loc1[,2]))
+
+lambda2=(solve(S) - solve(S) %*% M %*% solve(t(M) %*% solve(S) %*% M) %*% t(M) %*% solve(S) ) %*% k + solve(S) %*% M %*% solve(t(M) %*% solve(S) %*% M) %*% m
+
+y.krig2=t(lambda2) %*% sample_data$median_house_value
+
+image.plot(as.surface(loc1, y.krig2), main='Kriging entire domain')
+# quilt.plot(loc1[,1], loc1[,2],y.krig2)
+
+# MSE
+g= m-t(M) %*% solve(S) %*% k
+
+mse.2=k0-t(k) %*% solve(S) %*% k + t(g) %*% solve(t(M) %*% solve(S) %*% M) %*% g
+mse.2=diag(mse.2)
+
+image.plot(as.surface(loc1, mse.2), main='Kriging MSE, entire domain')
+
 
 
 
